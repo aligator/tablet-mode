@@ -1,4 +1,4 @@
-TARGET_MODULE:=yoga-usage-mode
+TARGET_MODULE:=tablet-mode
 obj-m := $(TARGET_MODULE).o
 
 KVER?=$(shell uname -r)

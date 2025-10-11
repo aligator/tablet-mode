@@ -1,4 +1,5 @@
 # Tablet Mode Driver
+(based on the work of https://github.com/lukas-w/yoga-usage-mode)
 
 ## Problem
 The **Chuwi Hi10 Max** has out of the box support for tablet mode detection when detatching the keyboard. 

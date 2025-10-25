@@ -10,7 +10,7 @@ blacklist ilitek_ts_i2c
 ```
 
 ## Solution
-So to still support both this is an additional kernel driver that dects whether the detachable keyboard is connected.  
+So to still support both this is an additional kernel driver that detects whether the detachable keyboard is connected.  
 It listens for attach/detach events from the integrated **keyboard** and reports `SW_TABLET_MODE` via the Linux input subsystem.  
 
 This allows desktop environments and tools like `libinput` or  

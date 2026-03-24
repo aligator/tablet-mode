@@ -25,6 +25,20 @@
 static struct input_dev *device_input;
 static struct notifier_block usb_nb;
 
+/* Returns true when a matching keyboard is already connected. */
+static int match_keyboard(struct usb_device *udev, void *data)
+{
+	bool *present = data;
+
+	if (udev->descriptor.idVendor == KEYBOARD_VENDOR &&
+	    udev->descriptor.idProduct == KEYBOARD_PRODUCT) {
+		*present = true;
+		return 1;
+	}
+
+	return 0;
+}
+
 /*
  * USB event handler:
  * toggles SW_TABLET_MODE when the keyboard is attached or removed.
@@ -66,6 +80,7 @@ static int usb_notify(struct notifier_block *nb, unsigned long action, void *dat
 static int __init init(void)
 {
 	int err;
+	bool keyboard_present = false;
 
 	device_input = input_allocate_device();
 	if (!device_input)
@@ -88,6 +103,12 @@ static int __init init(void)
 
 	usb_nb.notifier_call = usb_notify;
 	usb_register_notify(&usb_nb);
+
+	usb_for_each_dev(&keyboard_present, match_keyboard);
+	input_report_switch(device_input, SW_TABLET_MODE, keyboard_present ? 0 : 1);
+	input_sync(device_input);
+	pr_info("tablet-mode: initial state -> tablet mode %s\n",
+		keyboard_present ? "OFF" : "ON");
 
 	pr_info("tablet-mode: module loaded (listening for HAILUCK keyboard)\n");
 	return 0;

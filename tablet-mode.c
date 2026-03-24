@@ -13,6 +13,7 @@
 #include <linux/init.h>
 #include <linux/input.h>
 #include <linux/usb.h>
+#include <linux/workqueue.h>
 
 #ifndef KEYBOARD_VENDOR
 #define KEYBOARD_VENDOR  0x258a
@@ -24,6 +25,31 @@
 
 static struct input_dev *device_input;
 static struct notifier_block usb_nb;
+static struct delayed_work initial_state_work;
+static bool tablet_mode_enabled;
+
+/*
+ * Some userspace components only react once they observe a fresh
+ * tablet-mode switch event. Reasserting the initial state shortly
+ * after module load helps when the system already booted without
+ * the keyboard attached.
+ */
+static void report_tablet_mode(bool enabled, bool force_event)
+{
+	if (force_event && test_bit(SW_TABLET_MODE, device_input->sw) == enabled)
+		__change_bit(SW_TABLET_MODE, device_input->sw);
+
+	tablet_mode_enabled = enabled;
+	input_report_switch(device_input, SW_TABLET_MODE, enabled);
+	input_sync(device_input);
+}
+
+static void initial_state_reassert(struct work_struct *work)
+{
+	report_tablet_mode(tablet_mode_enabled, true);
+	pr_info("tablet-mode: reasserted initial tablet mode %s\n",
+		tablet_mode_enabled ? "ON" : "OFF");
+}
 
 /* Returns true when a matching keyboard is already connected. */
 static int match_keyboard(struct usb_device *udev, void *data)
@@ -55,14 +81,12 @@ static int usb_notify(struct notifier_block *nb, unsigned long action, void *dat
 
 		switch (action) {
 		case USB_DEVICE_REMOVE:
-			input_report_switch(device_input, SW_TABLET_MODE, 1);
-			input_sync(device_input);
+			report_tablet_mode(true, false);
 			pr_info("tablet-mode: keyboard detached → tablet mode ON\n");
 			break;
 
 		case USB_DEVICE_ADD:
-			input_report_switch(device_input, SW_TABLET_MODE, 0);
-			input_sync(device_input);
+			report_tablet_mode(false, false);
 			pr_info("tablet-mode: keyboard attached → tablet mode OFF\n");
 			break;
 
@@ -105,10 +129,13 @@ static int __init init(void)
 	usb_register_notify(&usb_nb);
 
 	usb_for_each_dev(&keyboard_present, match_keyboard);
-	input_report_switch(device_input, SW_TABLET_MODE, keyboard_present ? 0 : 1);
-	input_sync(device_input);
+	report_tablet_mode(!keyboard_present, false);
 	pr_info("tablet-mode: initial state -> tablet mode %s\n",
 		keyboard_present ? "OFF" : "ON");
+
+	INIT_DELAYED_WORK(&initial_state_work, initial_state_reassert);
+	if (!keyboard_present)
+		schedule_delayed_work(&initial_state_work, msecs_to_jiffies(3000));
 
 	pr_info("tablet-mode: module loaded (listening for HAILUCK keyboard)\n");
 	return 0;
@@ -119,6 +146,7 @@ static int __init init(void)
  */
 static void __exit exit(void)
 {
+	cancel_delayed_work_sync(&initial_state_work);
 	usb_unregister_notify(&usb_nb);
 
 	if (device_input) {

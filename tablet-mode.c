@@ -135,4 +135,4 @@ module_exit(exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Johannes Hörmann (based on lukas-w)");
 MODULE_DESCRIPTION("Tablet mode switch via USB keyboard attach/detach (initially developed for Chuwi Hi10 Max)");
-MODULE_VERSION("1.0");
+MODULE_VERSION("1.1");
